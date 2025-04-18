@@ -1,4 +1,5 @@
-exec("Monte-Carlo simulation.py")
+import numpy as np
+import matplotlib.pyplot as plt
 
 N = 50
 steps = 100

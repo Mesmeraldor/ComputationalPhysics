@@ -150,6 +150,8 @@ def Animate(spins, steps, T):
     '''
     energy = [Energy(spins)]
     magnetization = [Magnetization(spins)]
+    for i in range(600 - 300 * abs(steps - 1.1)):        #bring the system to equilibrium
+        spins, delta_e = Update(spins, T)
     if steps > 0:
         for i in range(steps):
             spins, delta_e = Update(spins, T)
@@ -169,7 +171,7 @@ def Animate(spins, steps, T):
     return spins, np.array(energy), np.array(magnetization)
 
 
-def CorrelationFunction(magnetisation):
+def CorrelationFunction(magnetization):
     '''
     Get the correlation function given a set of magnetisation values over different time values.
 
@@ -179,15 +181,49 @@ def CorrelationFunction(magnetisation):
     Returns: (numpy_array) The correlation function for all time differences, where dt=1.
     '''
 
-    N = len(magnetisation)
+    N = len(magnetization)
 
     correlation_function = np.zeros(N-1)
 
     for i in range(1, N):
-        correlation_function[i-1] = (1/(N-i) * np.sum(magnetisation[i:] * magnetisation[:-i]) -
-                                        1/(N-i)**2 * np.sum(magnetisation[i:]) * np.sum(magnetisation[:-i]))
+        correlation_function[i-1] = (1/(N-i) * np.sum(magnetization[i:] * magnetization[:-i]) -
+                                        1/(N-i)**2 * np.sum(magnetization[i:]) * np.sum(magnetization[:-i]))
 
     return correlation_function
+
+
+def Mean(value_array, tau):
+    return np.mean(value_array[::tau])
+
+
+def Variance(value_array, tau):
+    '''
+    Take the variance over time steps 2*tau rather than successive time steps.
+
+    Parameters:
+    value_array : (array_like) array to take the variance over with equal time steps
+    tau : (int) correlation time
+    '''
+
+    k_mean = np.mean(value_array[::tau])
+    k_mean_squared = np.mean(value_array[::tau]**2)
+
+    return np.sqrt(2*tau // len(value_array) * (k_mean_squared - k_mean))
+
+
+def Blockify(value_array, tau):
+    '''
+    For the magnetisation and the specific heat, the variance has to be calculated
+    with blocks. This procedure splits the array into blocks and then calculates the mean and variance.
+
+    value_array : (array_like) the array for which we'll estimate the variance
+    tau : (int) correlation time
+    '''
+
+    N = len(value_array)
+    blocked_array = value_array[:N * (N//(16 * tau))].reshape(N // (16*tau), 16*tau)
+
+    return mean, variance
 
 
 def vector_to_rgb(angle):
@@ -208,34 +244,48 @@ def vector_to_rgb(angle):
 
 if __name__ == '__main__':
     N = 50
-    steps = 10000
     T = 2.5
 
-    spins, energy, magnetization = Animate(Random_spins(N), steps, T)
+    tau_dict = {0.5: 44, 0.7: 76, 0.9: 59, 1.1: 25, 1.3: 10, 1.5: 14, 1.7: 5, 1.9: 6, 2.1: 5, 2.3: 2, 2.5: 2}
+    tau = tau_dict[T]
 
-    correlation_function = [0]*(steps-1)
+    steps = 50 * tau
 
-    for i in range(steps-1):
-        correlation_function[i] = (1/(steps-i) * np.sum(magnetization[:-i]*magnetization[i:]))
+    spins, energy, magnetization = Animate(Aligned_spins(N), steps, T)
 
-    fig, ax = plt.subplots(2)
-    fig.suptitle("T = " + str(round(T,1)))
-    ax[0].plot(np.array(energy) / N**2)
-    ax[0].title.set_text("Energy per unit")
-    ax[0].set_ylim([-2,2])
-    ax[1].plot(np.array(magnetization) / N**2)
-    ax[1].title.set_text("Magnetization per unit")
-    ax[1].set_ylim([-1,1])
-    plt.tight_layout()
-    plt.show()
 
-    transition = np.reshape(spins, (N*N, 2))
-    U = np.reshape(transition[:,0], (N,N))
-    V = np.reshape(transition[:,1], (N,N))
-    angles = np.arctan2(V, U)
 
-    c3 = np.array(list(map(vector_to_rgb, angles.flatten())))
+    # correlation_function = CorrelationFunction(magnetization)
+    # tau = 0
+    # for chi in correlation_function:
+    #     if chi < 0:
+    #         break
+    #     tau += chi / correlation_function[0]
+    #
+    # print("T =", T, ", tau =", tau)
+    # plt.plot(correlation_function)
+    # plt.show()
 
-    fig, ax = plt.subplots()
-    q = ax.quiver(U, V, color=c3)
-    plt.show()
+
+
+    # fig, ax = plt.subplots(2)
+    # fig.suptitle("T = " + str(round(T,1)))
+    # ax[0].plot(np.array(energy) / N**2)
+    # ax[0].title.set_text("Energy per unit")
+    # ax[0].set_ylim([-2,2])
+    # ax[1].plot(np.array(magnetization) / N**2)
+    # ax[1].title.set_text("Magnetization per unit")
+    # ax[1].set_ylim([-1,1])
+    # plt.tight_layout()
+    # plt.show()
+    #
+    # transition = np.reshape(spins, (N*N, 2))
+    # U = np.reshape(transition[:,0], (N,N))
+    # V = np.reshape(transition[:,1], (N,N))
+    # angles = np.arctan2(V, U)
+    #
+    # c3 = np.array(list(map(vector_to_rgb, angles.flatten())))
+    #
+    # fig, ax = plt.subplots()
+    # q = ax.quiver(U, V, color=c3)
+    # plt.show()
