@@ -224,7 +224,7 @@ def Blockify(value_array, tau):
     blocked_array = value_array[:N * (N//(16 * tau))].reshape(N // (16*tau), 16*tau)
     values = np.zeros(N//(16*tau))
     for i, value_sequence in enumerate(blocked_array):
-        values[i] = np.mean(value_sequence[::tau]**2) - np.mean(value_sequence[::tau])**2
+        values[i] = np.mean(value_sequence[::2*tau]**2) - np.mean(value_sequence[::2*tau])**2
     mean = np.mean(values)
     variance = np.sqrt(1 / (N // (16*tau)) * (np.mean(values**2) - np.mean(values)**2))
 
