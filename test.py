@@ -7,4 +7,4 @@ orientation = 5
 angles = np.random.uniform(-np.pi, np.pi, size=(N,N))
 spins = np.stack((np.cos(angles), np.sin(angles)), axis=-1)
 
-print(spins[:, :, 0] **2 + spins[:, :, 1]**2)
+print(np.arctan2(-1,0))

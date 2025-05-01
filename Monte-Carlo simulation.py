@@ -90,7 +90,7 @@ def Energy(spins):
     return energy
 
 
-def Update_spin(spins, T, i, j, range=1.):
+def Update_spin(spins, T, i, j, range=.3):
     '''
     Returns the new orientation of the spin at position [i,j] as a (2) numpy array,
     and the gain or loss of energy of this rotation as a float
@@ -150,24 +150,13 @@ def Animate(spins, steps, T):
     '''
     energy = [Energy(spins)]
     magnetization = [Magnetization(spins)]
-    for i in range(600 - 300 * abs(steps - 1.1)):        #bring the system to equilibrium
+    # for i in range(int(600 - 300 * abs(steps - 1.1))):        #bring the system to equilibrium
+    for _ in range(100):
         spins, delta_e = Update(spins, T)
-    if steps > 0:
-        for i in range(steps):
-            spins, delta_e = Update(spins, T)
-            energy += [energy[i]+delta_e]
-            magnetization += [Magnetization(spins)]
-    elif steps == 0:
+    for i in range(steps):
         spins, delta_e = Update(spins, T)
-        energy.append(Energy(spins))
-        magnetization.append(Magnetization(spins))
-        c = 0
-        while abs(energy[c+1]-energy[c]) > 0.01 and abs(magnetization[c+1]-magnetization[c]) > 0.01:
-            for i in range(N**2):
-                spins, delta_e = Update(spins, T)
-                energy += [energy[i]+delta_e]
-                magnetization += [Magnetization(spins)]
-            c += 1
+        energy += [energy[i]+delta_e]
+        magnetization += [Magnetization(spins)]
     return spins, np.array(energy), np.array(magnetization)
 
 
@@ -196,7 +185,7 @@ def Mean(value_array, tau):
     return np.mean(value_array[::tau])
 
 
-def Variance(value_array, tau):
+def StandardDeviation(value_array, tau):
     '''
     Take the variance over time steps 2*tau rather than successive time steps.
 
@@ -213,8 +202,8 @@ def Variance(value_array, tau):
 
 def Blockify(value_array, tau):
     '''
-    For the magnetisation and the specific heat, the variance has to be calculated
-    with blocks. This procedure splits the array into blocks and then calculates the mean and variance.
+    For the magnetisation and the specific heat, the variance has to be calculated with blocks.
+    This procedure splits the array into blocks and then calculates the mean and variance of <X^2> - <X>^2.
 
     value_array : (array_like) the array for which we'll estimate the variance
     tau : (int) correlation time
@@ -247,16 +236,82 @@ def vector_to_rgb(angle):
     return matplotlib.colors.hsv_to_rgb((angle / 2 / np.pi, 1, 1))
 
 
+def FindVortices(spins):
+    '''
+    Find the coordinates where points circle about a particular point.
+
+    Parameters:
+    spins : (array_like) An (N,N,2) array of spin values.
+    '''
+
+    pos_coords = []
+    neg_coords = []
+
+    for i in range(N):
+        for j in range(N):
+            next_x = (j+1)%N
+            next_y = (i+1)%N
+            lb_angle = np.atan2(spins[i,j,1], spins[i,j,0])
+            rb_angle = np.atan2(spins[i,next_x,1], spins[i,next_x,0])
+            lt_angle = np.atan2(spins[next_y,j,1], spins[next_y,j,0])
+            rt_angle = np.atan2(spins[next_y,next_x,1], spins[next_y,next_x,0])
+
+            b_delta = (rb_angle - lb_angle + np.pi) % (2*np.pi) - np.pi
+            r_delta = (rt_angle - rb_angle + np.pi) % (2*np.pi) - np.pi
+            t_delta = (lt_angle - rt_angle + np.pi) % (2*np.pi) - np.pi
+            l_delta = (lb_angle - lt_angle + np.pi) % (2*np.pi) - np.pi
+
+            if b_delta + r_delta + t_delta + l_delta > 0.1:
+                pos_coords += [(j+.5,i+.5)]
+            if b_delta + r_delta + t_delta + l_delta < -0.1:
+                neg_coords += [(j+.5, i+.5)]
+
+    return pos_coords, neg_coords
+
+
+def SpinPlotter(spins):
+    '''
+    Plot the curl and the states of the spin in one figure.
+
+    Parameters:
+    spins : (array_like) An (N,N,2) array of the spin values.
+    '''
+
+    fig, ax = plt.subplots()
+
+    transition = np.reshape(spins, (N*N, 2))
+    U = np.reshape(transition[:,0], (N,N))
+    V = np.reshape(transition[:,1], (N,N))
+    angles = np.arctan2(V, U)
+
+    c3 = np.array(list(map(vector_to_rgb, angles.flatten())))
+
+    q = ax.quiver(U, V, color=c3, scale=100)
+    ax.set_box_aspect(1)
+    ax.set_title("T="+ str(T))
+
+    pos_poles, neg_poles = FindVortices(spins)
+
+    for coord in pos_poles:
+        ax.add_patch(plt.Circle(coord, 1, color='r', fill=False))
+    for coord in neg_poles:
+        ax.add_patch(plt.Circle(coord, 1, color='b', fill=False))
+
+    plt.tight_layout()
+    plt.show()
+
+
 if __name__ == '__main__':
-    N = 50
-    T = 2.5
+    N = 100
+    T = 0.7
 
-    tau_dict = {0.5: 44, 0.7: 76, 0.9: 59, 1.1: 25, 1.3: 10, 1.5: 14, 1.7: 5, 1.9: 6, 2.1: 5, 2.3: 2, 2.5: 2}
-    tau = tau_dict[T]
-
-    steps = 50 * tau
+    steps = 0
 
     spins, energy, magnetization = Animate(Aligned_spins(N), steps, T)
+    T = 0.5
+    SpinPlotter(spins)
+    spins, energy, magnetization = Animate(spins, steps, T)
+    SpinPlotter(spins)
 
 
 
@@ -271,8 +326,6 @@ if __name__ == '__main__':
     # plt.plot(correlation_function)
     # plt.show()
 
-
-
     # fig, ax = plt.subplots(2)
     # fig.suptitle("T = " + str(round(T,1)))
     # ax[0].plot(np.array(energy) / N**2)
@@ -282,15 +335,4 @@ if __name__ == '__main__':
     # ax[1].title.set_text("Magnetization per unit")
     # ax[1].set_ylim([-1,1])
     # plt.tight_layout()
-    # plt.show()
-    #
-    # transition = np.reshape(spins, (N*N, 2))
-    # U = np.reshape(transition[:,0], (N,N))
-    # V = np.reshape(transition[:,1], (N,N))
-    # angles = np.arctan2(V, U)
-    #
-    # c3 = np.array(list(map(vector_to_rgb, angles.flatten())))
-    #
-    # fig, ax = plt.subplots()
-    # q = ax.quiver(U, V, color=c3)
     # plt.show()
